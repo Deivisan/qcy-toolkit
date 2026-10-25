@@ -1,7 +1,30 @@
-# AGENTS.md — QCY H3S Linux Protocol Project
+# AGENTS.md — QCY Toolkit (QCY H3S, Linux + Windows)
 
 ## Visão Geral
-Projeto de engenharia reversa para controle QCY H3S no Linux via SPP/RFCOMM + GATT. O foco principal é o repositório `qcy-ble-linux` que fornece `bin/qcy-ctl` + `scripts/` + CLI Bun para controle de ANC, Volume, Música, Game Mode, LDAC.
+Projeto de engenharia reversa e ferramentas para fones QCY (H3S testado).
+Repo: **`qcy-toolkit`** (<https://github.com/Deivisan/qcy-toolkit>, renomeado de
+`qcy-ble-linux` em 25/10/2026 — o GitHub redireciona o nome antigo).
+
+- Linux: `bin/qcy-ctl` + `scripts/` + CLI Bun (ANC, volume, música, game, LDAC).
+- Windows: LDAC 990 kbps funcional via Alternative A2DP Driver — ver
+  `docs/WINDOWS-LDAC.md`.
+
+## Windows (estado em 25/10/2026)
+- Windows 11 Pro 26H2 (build 26300), dongle BARROT 6.0 `33fa:0012` (UGREEN CM748).
+- **LDAC 990 kbps / 96 kHz / 24-bit OK** com Alternative A2DP Driver 1.8.3.1
+  (trial até 01/11/2026; licença ~US$10).
+- O LDAC só aparece no driver depois de habilitar **no app QCY do celular**
+  (gatilho de firmware). Verificação objetiva:
+  `HKLM\SYSTEM\CurrentControlSet\Services\AltA2DP\Parameters\Devices\{Capability,Current}\<mac>`
+  — `Codec` é bitmask (1=SBC, 2=AAC, 4=LDAC).
+- **SPP não funciona no Windows**: porta COM6 abre mas `ConnectionCount=0`;
+  socket RFCOMM direto dá `WSA 10049/10050`. Os comandos `FF 03 23 01 01` etc.
+  **não chegam no fone** — e provavelmente nunca foram validados no Linux
+  (o próprio README dizia "validação auditiva pendente"). O controle real do app
+  é RCSP/GATT com handshake.
+- Barrot está na lista de adaptadores problemáticos do fabricante do driver
+  (capa SBC/AAC <200 kbps). Se picotar em LDAC: cair para 660/330 ou trocar por
+  dongle Realtek RTL8761B.
 
 ## Stack Atual
 > ⚠️ **Atualizado 25/09/2026.** O AGENTS.md original descrevia um ambiente que

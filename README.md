@@ -1,12 +1,14 @@
-# QCY BLE / SPP Control — Linux (QCY H3S e compatíveis)
+# QCY Toolkit — Linux + Windows (QCY H3S e compatíveis)
 
-Controle total de fones QCY (H3S testado) no Linux **sem o app Android**.
+Ferramentas para tirar o máximo de fones QCY (H3S testado) **sem depender do app Android**.
 
-**Status (2026-08-16):** ✅ **Controle SPP/RFCOMM** · ✅ **Mic OpenWhispr + BrowserOS** (A2DP música + HFP ao gravar) · ✅ **Protocolo completo documentado** (72 Cmd IDs, 25 UUIDs, 2 rotas de transporte)
+**Status (2026-10-25):** ✅ **LDAC 990 kbps no Windows 11** ([docs/WINDOWS-LDAC.md](./docs/WINDOWS-LDAC.md)) · ✅ **Mic OpenWhispr + BrowserOS** (A2DP música + HFP ao gravar) · ✅ **Protocolo completo documentado** (72 Cmd IDs, 25 UUIDs, 2 rotas de transporte) · ⚠️ **SPP no Windows não conecta** (controle real é RCSP/GATT)
 
 **Protocolo (engenharia reversa):** [analysis/QCY-H3S-PROTOCOL-COMPLETO.md](./analysis/QCY-H3S-PROTOCOL-COMPLETO.md) — capturado de 3 versões do APK oficial (682/689/715).
 
 Microfone / voz: [docs/MIC-SETUP-FINAL.md](./docs/MIC-SETUP-FINAL.md) — `./scripts/qcy-install-mic-setup.sh`
+
+Windows / qualidade máxima: [docs/WINDOWS-LDAC.md](./docs/WINDOWS-LDAC.md) — LDAC 990 kbps / 96 kHz / 24-bit via Alternative A2DP Driver.
 
 - GATT vendor (0000a001/00001001) **não é exposto** pelo BlueZ neste dispositivo.
 - Todo o controle real acontece por **SPP/RFCOMM** (UUID 00001101, canal 1).
