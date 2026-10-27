@@ -517,7 +517,7 @@ muito bom".**
 
 2. Se precisar:
    ```bash
-   git clone <este-repo> && cd qcy-ble-linux
+   git clone <este-repo> && cd qcy-toolkit
    ./scripts/apply-btusb-esco-count-fix.sh
    ./scripts/apply-btusb-esco-count-fix.sh --check
    ```

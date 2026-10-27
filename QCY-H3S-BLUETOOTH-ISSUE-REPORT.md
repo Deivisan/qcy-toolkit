@@ -1,7 +1,7 @@
 # QCY H3S Microphone Issue - Complete Report
 
 **Date:** June 14, 2026  
-**Repository:** `qcy-ble-linux`  
+**Repository:** `qcy-toolkit` (renomeado de `qcy-ble-linux` em 25/10/2026)  
 **Hardware:** UGREEN BT6.0 (USB ID `33fa:0012` - Barrot BR8554) + QCY H3S (MAC `84:AC:60:05:55:2C`)
 
 ---
