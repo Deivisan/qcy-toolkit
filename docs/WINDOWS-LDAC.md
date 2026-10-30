@@ -108,3 +108,47 @@ Tentativas feitas nesta sessão:
 
 Conclusão: o canal de controle real do app QCY **não é** o SPP "cru" que o
 `bin/qcy-ctl` usava. É RCSP/GATT (com handshake) — próximo alvo do toolkit.
+
+---
+
+## Estado 29/10/2026 - A2DP cai para HFP e driver AltA2DP falha
+
+Sintoma: audio do H3S sai em **Hands-Free (HFP)** em vez de A2DP, e o
+microfone do fone fica aberto como endpoint de captura ativo ("microfone ta
+aberto? ta apenas handsfree pq").
+
+Causa raiz medida (nao teorica):
+
+1. `HKLM\SYSTEM\CurrentControlSet\Services\AltA2DP\Parameters\Devices\Current\<mac>`
+   - `Codec=0`, `Opened=0`, **`Error=1`**. `Capability.Codec=3` (SBC+AAC),
+     ou seja o SDP negocia, mas o driver **nao abre o stream**.
+2. Apagar as chaves `Current` e `Capability` do device e reiniciar o servico
+   `AltA2DP` regenera tudo - e ele falha igual (`Error=1`). Nao e corrupcao
+   de registro.
+3. Com o A2DP sem abrir, o Windows cai no HFP: endpoints
+   `Headset (QCY H3S Hands-Free)` ficam `Active` (render **e** capture) e o
+   endpoint A2DP `Fones de ouvido (QCY H3S)` fica `Unplugged`.
+
+Isto coincide com a lista de adaptadores problematicos do fabricante do
+driver: o BARROT `33fa:0012` esta nela.
+
+Comandos que funcionam para ressuscitar o link classico (ACL) quando o fone
+esta ligado e o BLE responde mas nada conecta:
+
+```powershell
+Restart-Service BTAGService -Force
+Start-Service BluetoothUserService_<sid>      # fica Stopped e o A2DP nao sobe sem ele
+python C:\Users\Deivi\AppData\Local\Temp\opencode\bt_service.py   # BluetoothSetServiceState toggle A2DP/HFP
+```
+
+Diagnostico BLE rapido: `BleakScanner.discover()` deve achar
+`84:AC:60:F8:A6:BF`. Se retornar 0 dispositivos, o radio esta travado -
+destravar com `python .../radio_toggle.py` (WinRT `Radio.SetStateAsync`),
+nao com PowerShell (WinRT nao funciona no pwsh 7 aqui).
+
+Decisao pendente: se apos reboot limpo o `Error=1` persistir, remover
+`oem2.inf` (`pnputil /delete-driver oem2.inf /uninstall`) devolve o A2DP
+nativo do Windows (AAC/SBC), ao custo do LDAC.
+
+Backups salvos no Desktop: `AltA2DP-Current-backup.reg`,
+`AltA2DP-Devices-backup.reg`.
