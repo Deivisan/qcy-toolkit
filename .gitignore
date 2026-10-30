@@ -24,6 +24,7 @@ docs/*.md
 !docs/MIC-QUALITY.md
 !docs/KERNEL-BTUSB-BARROT.md
 !docs/WINDOWS-LDAC.md
+!docs/FIRMWARE-JL7018.md
 
 # === Experimentos e debug (thread mic/HFP separado — não forçar sem permissão explícita) ===
 # Deixe para sessões futuras com agentes mais inteligentes.

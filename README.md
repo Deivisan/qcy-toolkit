@@ -10,6 +10,8 @@ Microfone / voz: [docs/MIC-SETUP-FINAL.md](./docs/MIC-SETUP-FINAL.md) — `./scr
 
 Windows / qualidade máxima: [docs/WINDOWS-LDAC.md](./docs/WINDOWS-LDAC.md) — LDAC 990 kbps / 96 kHz / 24-bit via Alternative A2DP Driver.
 
+Firmware (o que dá / o que não dá): [docs/FIRMWARE-JL7018.md](./docs/FIRMWARE-JL7018.md) — SoC JieLi JL7018F6, OTA RCSP, container `.UFW` e onde estão os bloqueios reais.
+
 - GATT vendor (0000a001/00001001) **não é exposto** pelo BlueZ neste dispositivo.
 - Todo o controle real acontece por **SPP/RFCOMM** (UUID 00001101, canal 1).
 - Framing 0xFF idêntico ao que mapeamos do APK oficial + Quicky + Jieli RCSP.
