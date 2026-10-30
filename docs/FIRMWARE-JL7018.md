@@ -231,15 +231,22 @@ Duas coisas importantes:
 
 ### 5.2 O que está cifrado de verdade: o conteúdo da flash
 
-Dentro do `flash.bin`, as regiões de código são embaralhadas com `jl_sfc_cipher`
-— chave derivada do **chipkey** do SoC, em blocos de 32 bytes. É por isso que
-dump cru de flash sem a chave é inútil. A comunidade tem `recrypt.py` (converte
-de uma chave para outra), `bruteforce.py` (recupera chave em BR17–BR21) e
-`chipkeybin.py` (extrai `chipkey.bin` de imagens antigas).
+Dentro do `flash.bin`, a região de app é embaralhada com `jl_sfc_cipher`
+(blocos de 32 bytes, chave por bloco derivada da chipkey + `offset>>2`).
 
-Se o H3S guardar chipkey em área protegida, essa é a barreira **real** para
-editar conteúdo — e ela vale só para o conteúdo; o envelope `.UFW` continua
-aberto.
+Mas — e isso é decisivo — **a chipkey viaja dentro do próprio firmware**: ela
+está codificada no `isd_config.ini` embutido, e `jltech/chipkeybin.py`
+(`chipkeybin_decode`) a decodifica. O `fwunpack_newfw.py` faz exatamente isso
+(linha ~242: "Here's the chipkey!") e usa a chave para decifrar a área de app.
+
+Ou seja: a chipkey não é barreira para quem tem o arquivo — é barreira só para
+quem tem **dump cru de flash sem arquivo**. E `recrypt.py` permite reembaralhar
+uma região com outra chave (cifrar = decifrar aqui), então editar conteúdo e
+fechar de novo é mecanicamente possível.
+
+`bruteforce.py` existe para as famílias antigas (BR17–BR21) onde a chipkey vinha
+num `chipkey.bin` de 32 bytes estranhamente codificado — nas novas ela já vem
+no `isd_config.ini`.
 
 ### 5.3 Ferramentas, honestamente
 
@@ -261,8 +268,8 @@ em mãos ou acesso físico.
 | Nível | Precisa | Dá para fazer |
 |---|---|---|
 | **BLE (o que temos)** | nada além do fone | ler identidade, chave de auth, config, botões, EQ, ANC |
-| **BLE + `.UFW`** | um `.ufw` de QCY com JL7018 | abrir com `fwunpack_newfw`, comparar versões, achar o flag, possivelmente repackar |
-| **BLE + `.UFW` + chipkey** | chipkey da flash | editar conteúdo de verdade (não só envelope) |
+| **BLE + `.UFW`** | um `.ufw` de QCY com JL7018 | abrir com `fwunpack_newfw`, comparar versões, achar o flag, repackar |
+| **BLE + `.UFW` + edição** | o mesmo arquivo (chipkey sai de dentro dele) | editar conteúdo, reembaralhar com `recrypt.py`, fechar `.UFW` |
 | **USB UBOOT** | solda nos pinos / PCB exposta | dump e flash cru — se a família for suportada |
 | **SPI direto** | dessoldar a flash (se externa) | dump total; ainda cifrado pelo chipkey |
 
