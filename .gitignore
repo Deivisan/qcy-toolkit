@@ -52,3 +52,6 @@ src/lib/spp/
 # - bin/qcy-ctl e bin/qcy-spp-raw (entregáveis SPP/RFCOMM)
 # - src/lib/spp/qcy-spp-exec.ts + integração no ble.ts (depois de validar)
 # - ESTADO_ATUAL.md, README.md, qcy-fix.md (sempre atualizados)
+
+# APK descompactado (128 MB) - nunca subir
+apk/
