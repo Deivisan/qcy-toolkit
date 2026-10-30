@@ -125,6 +125,8 @@ Detalhes completos, erros do caminho errado e receita para outras máquinas:
 | `TENTATIVAS-SEM-SUCESSO.md` | Histórico de falhas e lições aprendidas (anti-repetição). | ✅ Concluído |
 | `ESTADO_ATUAL.md` | Status ao vivo (15/06/2026): A2DP OK, mic via mSBC/HFP, controle SPP OK. | ⚠️ Atualização pendente (último commit 2 meses) |
 | `docs/MIC-QUALITY.md` | Qualidade de áudio/mic. | ✅ Concluído |
+| `docs/FIRMWARE-JL7018.md` | Viabilidade de firmware: SoC JL7018F6, OTA RCSP, se é assinado, container `.ota`, como o arquivo oficial se obtém. | ✅ Concluído (30/10/2026) |
+| `docs/FIRMWARE-FORMATOS.md` | Formatos binários JieLi: JLFS v2, `.ufw`/`.fwsc`/`.bfu`, BANKCB, chipkey/key file, protocolo UBOOT, receita de repack. | ✅ Referência (30/10/2026) |
 | `QCY-H3S-BLUETOOTH-ISSUE-REPORT.md` | Histórico. | ⚠️ Desatualizado |
 
 ## Protocolos Capturados (engineering reverse)

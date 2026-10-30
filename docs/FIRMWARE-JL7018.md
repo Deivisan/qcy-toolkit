@@ -1,7 +1,9 @@
 # Firmware do H3S — o que dá, o que não dá, e o que protege
 
-Estudo de 30/10/2026. **Nada aqui foi executado no fone** além de leitura pura
-(`GET_TARGET_INFO`, `GET_ADV_INFO`, `GET 0x23`). Nenhum comando OTA foi enviado.
+Estudo de 30/10/2026, em três frentes: código OTA do APK decompilado, leitura
+read-only no fone e pesquisa de ferramentas/comunidade. **Nada aqui foi
+executado no fone** além de leitura pura (`GET_TARGET_INFO`, `GET_ADV_INFO`,
+`GET 0x23`). Nenhum comando OTA foi enviado, nenhum `.so` foi executado.
 
 ## 1. O hardware
 
@@ -60,7 +62,10 @@ GET 0x30  ->  30 03 00 01 08      # 1.8
 funciona em modo de atualização, não em operação normal.
 
 O `VID_AND_PID` aparece também no ADV: `05 d6 1c 52 41 7c` no product message.
-Mesma identidade em dois canais.
+Mesma identidade em dois canais. E ele casa com o APK: `1C 52 41 7C` → PID
+`0x417C` = **16764**, que é o número em `res/raw/function_h3_16764.json`. O
+H3S usa o mapa de funções do H3 — mas esse mapa **não** está no dicionário
+local do APK (ver §7).
 
 ## 3. O protocolo de atualização (do APK, `com.jieli.jl_bt_ota`)
 
@@ -108,6 +113,10 @@ não sabe se o `.UFW` está certo — pergunta ao dispositivo onde está o flag
 (`0xE1`), devolve os bytes (`0xE2`) e deixa ele decidir. O formato do `.UFW`
 nunca esteve no QCY Audio; ele está revertido em código aberto, ver §5.
 
+E o que sobra no APK é nativo: `ParseDataUtil.nativeFilterFile` (`jl_bt_ota/util/
+ParseDataUtil.java:33,51`) delega o filtro do arquivo para `libjl_ota_auth.so`,
+cujas strings incluem `JLUFW` e `CRC16` (§4.1).
+
 ## 4. É assinado? Não.
 
 Não existe verificação criptográfica de assinatura em **nenhum** ponto do
@@ -128,6 +137,25 @@ O detalhe que muda tudo: **a chave está no próprio fone**.
 `ATTR_TYPE_AUTH_KEY` (11) é lido por BLE sem autenticação nenhuma. É um
 segredo que o dispositivo entrega a quem perguntar — e a função de cifra está
 em 15 KB de `.so` ARM64.
+
+E dentro dessa `.so` há mais do que cifra. As strings não ofuscadas mostram
+variantes de auth **por fabricante** e o cruzamento de identidade do chip:
+
+```
+function_xiaomi     function_E1test     function_E21
+cd03_crc_encode     CRC16               JLUFW
+pid=%d, uid=%d, jpid=%d, juid=%d
+Java_..._ParseDataUtil_nativeFilterFile
+```
+
+Duas leituras:
+
+- `JLUFW` + `CRC16` + `nativeFilterFile` ⇒ **o parser/validador do arquivo de
+  atualização é nativo**, não Java. É por isso que o APK não conhece o formato
+  (§3) — quem valida `.ufw` é essa biblioteca.
+- `uid`/`juid` ⇒ a auth pode estar amarrada ao **UID do chip** e existe uma
+  variante por cliente (Xiaomi tem a sua). Não é um MD5 que se reimplementa em
+  20 linhas; é caixa-preta ARM64 com 15 KB.
 
 Ou seja: tecnicamente contornável, mas **não testei o handshake** e não vou
 testar sem você mandar. Risco de lockout em auth falha não é zero.
@@ -255,27 +283,111 @@ no `isd_config.ini`.
 | `jl-misctools/fwunpack_newfw.py` | abrir `.UFW`, extrair `flash.bin`, listar JLFS | incompleto (não trata áreas reservadas) |
 | `jl-misctools/mkbfu.py` | **criar `.bfu`** byte-exato igual ao `bfumake.exe` do SDK | precisa saber o nome/tipo da imagem |
 | `jl-misctools/mkjlfs.py` | montar JLFSv2 (o "sistema de arquivos" da flash) | |
-| `jl-misctools/recrypt.py` / `bruteforce.py` | trocar/recuperar chave SFC | só famílias antigas validadas |
-| `jl-uboot-tool` | dump/flash cru via **USB UBOOT** | cobertura real pequena (chips antigos); JL7018 não listado; exige solda nos pinos |
+| `jl-misctools/tonecfgmk.py` | montar `tone.cfg` (os bipes do fone) | não valida codec/bitrate |
+| `jl-misctools/recrypt.py` / `bruteforce.py` / `debank.py` | trocar/recuperar chave SFC e de BANKCB | só famílias antigas validadas |
+| `jl-uboot-tool` | dump/flash cru via **USB UBOOT** | BR36 (AC700N) = "n/a"; JL7018 não listado |
 | `kagaimiq/jielie` | base de conhecimento das famílias (BR17…BR36) | referência, não opera nada |
-| Toolchain oficial (`fw_add`, `ufw_maker`, `isd_download`) | gerar/gravar `.UFW` oficial | SDK sob NDA |
+| Toolchain oficial (`fw_add`, `ufw_maker`, `isd_download`) | gerar/gravar `.UFW` oficial | binários só vêm no SDK |
 
 Nenhuma dessas ferramentas fala com o JL7018 pelo rádio. Todas exigem arquivo
 em mãos ou acesso físico.
 
-## 6. O que é possível, por nível de acesso
+A especificação completa dos formatos (entrada JLFS, `.ufw`/`.bfu`/`.fwsc`,
+BANKCB, chipkey, protocolo UBOOT, receita de repack) está em
+[`FIRMWARE-FORMATOS.md`](./FIRMWARE-FORMATOS.md).
+
+### 5.4 A doc oficial da JieLi é pública — e responde metade das dúvidas
+
+| Recurso | Onde | O que dá |
+|---|---|---|
+| Protocolo UBOOT v1.1.2 | `github.com/Jieli-Tech/fw-Bootloader/blob/main/doc/` | frames `0xAA55`, cmd `0xC0..0xC5`, CRC-XModem |
+| `isd_config.ini` | `doc.zh-jieli.com/Tools/.../ini_cfg.html` | `VID`, `PID`, `AUTH_CODE` (**default 0**), `EOFFSET` |
+| flash params | `.../post_build/flash_params/` | `FLASH_WRITE_PROTECT`, `OTP_CFG_SIZE=512` |
+| multi-algoritmo | `.../mass_prod_tools/multi_auth/` | `Authorization_ID`, `.authrun` |
+| RCSP-OTA | `.../WeChat-Mini-Program-OTA/2-ota-sdk/3-jl-rcsp-ota.html` | confirma: `CmdReadFileOffset` devolve `{offset,len}` do flag — **quem define o formato é o fone** |
+| SDKs AC701N | `gitlab.zh-jieli.com/soundbox/novisualization/ac701n_soundbox_sdk` | zip responde 200 **sem login** |
+
+Dois fatos importantes que saíram daí:
+- `AUTH_CODE` existe mas **nasce desligado**. Não sabemos o valor no H3S.
+- **Não há read-out protection documentada.** O que existe é
+  `FLASH_WRITE_PROTECT` (escrita). Dump de flash nova é possível por UBOOT —
+  ElectronicCats publicou 4 MB byte-exact de um AC707N/BR35, "in its on-flash
+  (SFC-scrambled) form": legível, cifrado.
+
+## 6. O caminho `.ota` — a edição que o app realmente suporta
+
+Fora do firmware, o QCY Audio **fabrica pacotes de tom e tema** em Kotlin e os
+manda ao fone. Layout verificado (`common/subutil/OTAFile.java` e
+`OTAUpgrade.java`):
+
+```
+18 B BE:  vid(u16) pid(u16) version(u16) len(u32) imageId(u32) crc32(u32)
+16 B LE:  magic 0xABCD6543, fwVersion=1, 0x1000, 0xFFFFFFFF
+16 B LE:  len, len, 0, 0
+ 4 B LE:  crc32 dos 16 B anteriores
+   ... payload
+ 4 B LE:  crc32 do payload
+```
+
+`imageId`: `TONE = 144`, `THEME0..THEME6 = 145..151`.
+
+Por que isso importa: é a única alteração de conteúdo **comprovadamente
+suportada pelo app**, sem tocar em firmware. Trocar o som de ligar/desligar ou
+o tema é muito menos arriscado que mexer em código — e o formato está
+inteiramente replicável. O `tonecfgmk.py` da comunidade monta o `tone.cfg`
+(JLFS com `index.idx` + um arquivo por tom), que é o payload do lado do fone.
+
+## 7. Como o arquivo oficial se obtém (não testado)
+
+O app não tem URL de firmware embutida — ele pergunta ao backend:
+
+```
+POST https://qcyaudio.qcy.com/earphoneoOta/findEarphoneoOta
+body: { firmwareVersion, modelId: <VendorId do fone>, classMac, otherMac }
+resp: { currentVersion, versionName, firmwareUrl, status, state, upgradeType, ... }
+```
+
+Fatos verificados no código (`http/service/IEarphoneService.java:36`,
+`http/res/EarphoneOTAVO.java`,`vm/HomeVM$checkNewFirework$2$1.java`):
+`modelId` **é o VendorId** convertido em string, não um ID de produto; o
+download sai com sufixo forçado `.ota` (`ui/home/OTAActivity.java:326`); e o
+`HeaderInterceptor` exige `Authorization: Bearer <token>`.
+
+Duas consequências:
+
+1. **É uma API autenticada.** Sem token da conta QCY, a chamada tende a falhar.
+   Não testei — e não vou testar sem você mandar, porque manda **MAC do fone**
+   para o servidor da QCY.
+2. `GET public/findControlPanels?modelId&firmwareVersion` decide quais funções
+   aparecem no app. Ou seja: **capacidade do H3S é liberada por servidor**, por
+   par (VID, versão de firmware). Confirma que o mapa local do APK não serve
+   para o H3S: `function_h3_16764.json` existe em `res/raw`, mas o mapa de
+   `vm/ControlFuncViewModelKt.java` tem 19 entradas e **16764 não está entre
+   elas** — o H3S cai no servidor.
+
+Sobre "existe firmware público": **não existe.** QCY só distribui pelo app
+(`qcy.com/pages/support-center-h3s` manda para o app), `mapp.qcymall.com`
+responde `41001` (sem AccessToken) em qualquer path, e não há `.ufw`/`.bfu` de
+H3S em 4pda, XDA, 酷安, 贴吧, 数码之家, 恩山 ou Telegram indexado.
+
+O mais próximo que existe de um `.ufw` da família é de um **smartwatch DaFit**
+com JL701N/BR28 (~1,26 MB, link vivo, citado em `kagaimiq/jielie#7`) — serve
+para estudar o container, **não** para gravar no fone.
+
+## 8. O que é possível, por nível de acesso
 
 | Nível | Precisa | Dá para fazer |
 |---|---|---|
 | **BLE (o que temos)** | nada além do fone | ler identidade, chave de auth, config, botões, EQ, ANC |
-| **BLE + `.UFW`** | um `.ufw` de QCY com JL7018 | abrir com `fwunpack_newfw`, comparar versões, achar o flag, repackar |
+| **BLE + tom/tema** | o formato `.ota` (acima) | trocar bipes e tema pelo canal do app |
+| **BLE + `.UFW`** | um `.ufw` de qualquer aparelho com o mesmo chip | abrir com `fwunpack_newfw`, comparar, achar o flag, repackar |
 | **BLE + `.UFW` + edição** | o mesmo arquivo (chipkey sai de dentro dele) | editar conteúdo, reembaralhar com `recrypt.py`, fechar `.UFW` |
-| **USB UBOOT** | solda nos pinos / PCB exposta | dump e flash cru — se a família for suportada |
+| **USB UBOOT** | solda nos pinos / PCB exposta | dump e flash cru — cobertura JL7018 **não confirmada** |
 | **SPI direto** | dessoldar a flash (se externa) | dump total; ainda cifrado pelo chipkey |
 
-Não temos (ainda): arquivo `.UFW` do H3S, dump de flash, nem acesso físico.
+Não temos (ainda): arquivo de firmware do H3S, dump de flash, nem acesso físico.
 
-## 7. Riscos, sem eufemismo
+## 9. Riscos, sem eufemismo
 
 1. **Brick de aplicação ≠ brick total.** O loader/UBOOT é separado do firmware
    de aplicação. Com `SUPPORT_DOUBLE_BACKUP = 1`, o fone tem dois bancos. Isso
@@ -290,19 +402,33 @@ Não temos (ainda): arquivo `.UFW` do H3S, dump de flash, nem acesso físico.
    do envelope não é barreira. Chipkey, mapa de flash e o layout do app é que
    são. Um `.ufw` com CRC certo e conteúdo errado passa no `0xE2`? Talvez — e aí
    o double bank é a única rede.
+6. **`WRITE_KEY` (0xFC12) é irreversível.** A chipkey é OTP e só apaga bits
+   (`nova = nova & atual`), e a gravação exige VPP 5000. Errar essa escrita
+   queima o aparelho de forma definitiva — sem double bank, sem loader, sem
+   nada. É o comando mais perigoso de todos, mais que o OTA inteiro.
+7. **Auth é nativa e por dispositivo.** A `libjl_ota_auth.so` tem variantes por
+   fabricante (`function_xiaomi`, `function_E1test`, `function_E21`) e imprime
+   `pid=%d, uid=%d, jpid=%d, juid=%d` — ou seja, ela cruza UID/JUID do chip. Não
+   é um MD5 que se reimplementa em 20 linhas: é caixa-preta ARM64 de 15 KB.
 
-## 8. Próximos passos (quando você mandar)
+## 10. Próximos passos (quando você mandar)
 
 Em ordem de custo/benefício, **nenhum deles toca no código que está em uso**:
 
-1. Procurar `.UFW` do H3S ou de outro QCY com JL7018 (4pda, XDA, grupos de
-   firmware QCY). Sem arquivo, tudo o resto é teoria.
-2. Com um `.UFW`: rodar `fwunpack_newfw.py`, ler o `chipname` do header, e
-   comparar dois arquivos de versões diferentes — o diff mostra o que muda.
-3. Só então: testar `0xE1` (pergunta o offset do flag) com o fone real. É
-   **leitura** e não muda estado — o passo mais informativo e mais barato.
-4. `0xE2` (inquire) **não** mandar sem arquivo: ele inicia a validação e, com
-   flag errado, produz erro no fone sem necessidade.
-5. Se um dia houver `.UFW`: extrair o `flash.bin`, procurar a assinatura JLFS e
+1. **Teste do `.ota` de tom/tema** — é o único caminho em que o app é o
+   fabricante do pacote. Baixar um par de bipes da própria UI (o app monta o
+   arquivo em Kotlin), capturar o BLE e ver o que o fone aceita de volta. Zero
+   risco de firmware.
+2. `0xE1` (pergunta o offset do flag) com o fone real. É **leitura**, não muda
+   estado, e é o passo mais informativo e mais barato do caminho de firmware.
+3. `0xE2` (inquire) **não** mandar sem arquivo: ele inicia validação e produz
+   erro no fone sem necessidade.
+4. **Arquivo de referência**: o `.ufw` de JL701N/BR28 (watch DaFit) serve para
+   validar o parser e o repack — sem tocar no fone.
+5. **Dump próprio via UBOOT** é o único jeito de ter o firmware *do* H3S. Exige
+   abrir o fone e soldar nos pinos (VID `4c4a`, `USB_KEY 0x16EF`, SCSI
+   `0xFB/0xFC/0xFD`). A família BR28 é "seems to work" — **inferência**, não
+   fato, e o `WRITE_KEY` fica fora de qualquer tentativa.
+6. Se um dia houver arquivo: extrair o `flash.bin`, procurar a assinatura JLFS e
    mapear as regiões de recurso (UI, EQ, tons) — mexer em recurso é bem menos
    arriscado que mexer em código.
